@@ -8,7 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace Utils.OpenXmlService
+namespace CoreUtils.OpenXmlService
 {
     /// <summary>
     /// A wrapper for <see cref="SpreadsheetDocument"/> that provides multiple methods for easy creation, read/write, and interaction with the document
