@@ -274,16 +274,15 @@ namespace Utils.OpenXmlService
             }
 
             // If there is already a cell with the specified column name, return it.
-            foreach (var c in row.Elements<Cell>())
+            var refCell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference.Value == cellReference);
+            if (refCell != null)
             {
-                if (c.CellReference.Value == cellReference)
-                {
-                    return c;
-                }
+                return refCell;
+
             }
+
             //Otherwise, create and insert a new one.
             // Cells must be in sequential order according to CellReference. Determine where to insert the new cell.
-            Cell refCell = null;
             int refCellCol = -1, newCellCol = ColumnNameToNum(cellReference);
             foreach (var cell in row.Elements<Cell>())
             {
@@ -354,7 +353,7 @@ namespace Utils.OpenXmlService
         /// <param name="values">The values to paste</param>
         public void PasteRange(string worksheetName, CellRef start, List<List<string>> values)
         {
-            int col = ColumnNameToNum(start.Col), startCol = col, row = (int)start.Row - 1;
+            int colNum = ColumnNameToNum(start.Col), startCol = colNum, rowNum = (int)start.Row - 1;
             var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart worksheetPart;
             try
@@ -363,15 +362,15 @@ namespace Utils.OpenXmlService
                 worksheetPart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { worksheetPart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            foreach (var r in values)
+            foreach (var row in values)
             {
-                col = startCol;
-                foreach (var s in r)
+                colNum = startCol;
+                foreach (var str in row)
                 {
-                    Insert(col, row, s, worksheetPart);
-                    col++;
+                    Insert(colNum, rowNum, str, worksheetPart);
+                    colNum++;
                 }
-                row++;
+                rowNum++;
             }
         }
 
@@ -432,7 +431,7 @@ namespace Utils.OpenXmlService
             foreach (var name in columnName)
             {
                 sum *= 26;
-                sum += (name - 'A' + 1);
+                sum += name - 'A' + 1;
             }
             return sum - 1;
         }
@@ -492,64 +491,64 @@ namespace Utils.OpenXmlService
         private string GetCellValue(Cell cell)
         {
             var value = cell.InnerText;
-            if (cell.DataType != null)
+            if (cell.DataType == null)
             {
-                if (cell.CellFormula != null)
+                return value;
+            }
+            if (cell.CellFormula != null)
+            {
+                if (cell.CellFormula.FormulaType != CellFormulaValues.Shared)
                 {
-                    if (cell.CellFormula.FormulaType == CellFormulaValues.Shared)
-                    {
-                        var index = cell.CellFormula.SharedIndex;
-                        var sheetData = cell.Ancestors<Worksheet>().First().GetFirstChild<SheetData>(); //get the SheetData from the Worksheet that is in this Cell's list of ancestors
-                        var formula = sheetData.Elements<CellFormula>().First(f => f.SharedIndex == index);
-                        return formula.Text;//actually need to get the modified formula based on the difference from here to the root
-                    }
-                    else
-                    {
-                        return cell.CellFormula.Text;
-                    }
+                    return cell.CellFormula.Text;
                 }
-                switch (cell.DataType.Value)
-                {
-                    case CellValues.SharedString:
+                var index = cell.CellFormula.SharedIndex;
+                var sheetData = cell.Ancestors<Worksheet>().First().GetFirstChild<SheetData>(); //get the SheetData from the Worksheet that is in this Cell's list of ancestors
+                var formula = sheetData.Elements<CellFormula>().First(f => f.SharedIndex == index);
+                return formula.Text; //actually need to get the modified formula based on the difference from here to the root
+            }
+            switch (cell.DataType.Value)
+            {
+                case CellValues.SharedString:
 
-                        // For shared strings, look up the value in the
-                        // shared strings table.
-                        var stringTable =
-                            _workbookPart.GetPartsOfType<SharedStringTablePart>()
+                    // For shared strings, look up the value in the
+                    // shared strings table.
+                    var stringTable =
+                        _workbookPart.GetPartsOfType<SharedStringTablePart>()
                             .FirstOrDefault();
 
-                        // If the shared string table is missing, something 
-                        // is wrong. Return the index that is in
-                        // the cell. Otherwise, look up the correct text in 
-                        // the table.
-                        if (stringTable != null)
-                        {
-                            value =
-                                stringTable.SharedStringTable
+                    // If the shared string table is missing, something 
+                    // is wrong. Return the index that is in
+                    // the cell. Otherwise, look up the correct text in 
+                    // the table.
+                    if (stringTable != null)
+                    {
+                        value =
+                            stringTable.SharedStringTable
                                 .ElementAt(int.Parse(value)).InnerText;
-                        }
-                        break;
+                    }
+                    break;
 
-                    case CellValues.Boolean:
-                        switch (value)
-                        {
-                            case "0":
-                                value = bool.FalseString;
-                                break;
-                            default:
-                                value = bool.TrueString;
-                                break;
-                        }
-                        break;
-                    case CellValues.Date:
-                        value = DateTime.Parse(value).ToLongDateString();
-                        break;
-                    case CellValues.Number: break;
-                    case CellValues.Error: break;
-                    case CellValues.String: break;
-                    case CellValues.InlineString: break;
-                    default: throw new ArgumentOutOfRangeException();
-                }
+                case CellValues.Boolean:
+                    switch (value)
+                    {
+                        case "0":
+                            value = bool.FalseString;
+                            break;
+                        default:
+                            value = bool.TrueString;
+                            break;
+                    }
+                    break;
+
+                case CellValues.Date:
+                    value = DateTime.Parse(value).ToLongDateString();
+                    break;
+                
+                case CellValues.Number: break;
+                case CellValues.Error: break;
+                case CellValues.String: break;
+                case CellValues.InlineString: break;
+                default: throw new ArgumentOutOfRangeException();
             }
             return value;
         }
@@ -648,7 +647,7 @@ namespace Utils.OpenXmlService
 
                     cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{start.Col}{rowNum}");
                     if (cell != null) { result = $"{start.Col}{rowNum}"; }
-                    rowNum += (direction == Direction.DOWN ? 1 : -1);
+                    rowNum += direction == Direction.DOWN ? 1 : -1;
                 }
             }
             return result;
