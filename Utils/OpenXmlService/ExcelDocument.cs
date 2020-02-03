@@ -17,18 +17,18 @@ namespace Utils.OpenXmlService
     public class ExcelDocument
     {
         #region Fields
-        private SpreadsheetDocument doc;
-        private WorkbookPart wbpart { get => doc.WorkbookPart; }
-        private Sheets sheets { get => wbpart.Workbook.GetFirstChild<Sheets>(); }
-        private MemoryStream stream = new MemoryStream();
-        private static uint numSheets = 0;
+        private SpreadsheetDocument _doc;
+        private WorkbookPart _workbookPart => _doc.WorkbookPart;
+        private Sheets _sheets => _workbookPart.Workbook.GetFirstChild<Sheets>();
+        private readonly MemoryStream _stream = new MemoryStream();
+        private static uint _numSheets;
         #endregion
 
         #region DataTypes
-        private static readonly EnumValue<CellValues> numType = new EnumValue<CellValues>(CellValues.Number);
-        private static readonly EnumValue<CellValues> strType = new EnumValue<CellValues>(CellValues.String);
-        private static readonly EnumValue<CellValues> boolType = new EnumValue<CellValues>(CellValues.Boolean);
-        private static readonly EnumValue<CellValues> dateType = new EnumValue<CellValues>(CellValues.Date);
+        private static readonly EnumValue<CellValues> NUM_TYPE = new EnumValue<CellValues>(CellValues.Number);
+        private static readonly EnumValue<CellValues> STR_TYPE = new EnumValue<CellValues>(CellValues.String);
+        private static readonly EnumValue<CellValues> BOOL_TYPE = new EnumValue<CellValues>(CellValues.Boolean);
+        private static readonly EnumValue<CellValues> DATE_TYPE = new EnumValue<CellValues>(CellValues.Date);
 
         #endregion
 
@@ -39,7 +39,7 @@ namespace Utils.OpenXmlService
         public ExcelDocument()
         {
             //have to create a doc to hold everything, then finish init        
-            doc = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook);
+            _doc = SpreadsheetDocument.Create(_stream, SpreadsheetDocumentType.Workbook);
             Init();
         }
 
@@ -50,7 +50,7 @@ namespace Utils.OpenXmlService
         public ExcelDocument(string file)
         {
             //create a doc using the given filename, then finish init
-            doc = SpreadsheetDocument.Create(file, SpreadsheetDocumentType.Workbook);
+            _doc = SpreadsheetDocument.Create(file, SpreadsheetDocumentType.Workbook);
             Init();
         }
 
@@ -63,7 +63,7 @@ namespace Utils.OpenXmlService
         {
             ExcelDocument result = new ExcelDocument
             {
-                doc = SpreadsheetDocument.Open(file, true)
+                _doc = SpreadsheetDocument.Open(file, true)
             };
             return result;
         }
@@ -75,10 +75,10 @@ namespace Utils.OpenXmlService
         {
             //doc holds a WorkbookPart which holds "Sheets" and a WorksheetPart, which in turn holds a Worksheet, which holds a Sheet
             //see ./doc for a diagram of a spreadsheet document
-            doc.AddWorkbookPart();
-            wbpart.Workbook = new Workbook();
-            wbpart.Workbook.AppendChild(new Sheets());
-            doc.AddExtendedFilePropertiesPart();
+            _doc.AddWorkbookPart();
+            _workbookPart.Workbook = new Workbook();
+            _workbookPart.Workbook.AppendChild(new Sheets());
+            _doc.AddExtendedFilePropertiesPart();
         }
         #endregion
 
@@ -99,7 +99,7 @@ namespace Utils.OpenXmlService
         /// <param name="cols">The column headers to use.  If not null, only the specified columns, in the specified order, will be written.</param>
         public void AddDataTable(DataTable data, string[,] cols)
         {
-            string sheetName = "Sheet" + numSheets;
+            string sheetName = "Sheet" + _numSheets;
             AddDataTable(data, cols, sheetName);
         }
 
@@ -153,7 +153,7 @@ namespace Utils.OpenXmlService
                 row++;
             }
 
-            wbpart.Workbook.Save();
+            _workbookPart.Workbook.Save();
         }
 
         /// <summary>
@@ -179,20 +179,20 @@ namespace Utils.OpenXmlService
                 row++;
             }
 
-            wbpart.Workbook.Save();
+            _workbookPart.Workbook.Save();
         }
 
         private WorksheetPart InsertSheet(string sheetName)
         {
-            WorksheetPart wspart = wbpart.AddNewPart<WorksheetPart>();
+            WorksheetPart wspart = _workbookPart.AddNewPart<WorksheetPart>();
             wspart.Worksheet = new Worksheet(new SheetData());
 
             Sheet sheet = new Sheet();
-            numSheets++;
+            _numSheets++;
             sheet.Name = sheetName;
-            sheet.Id = doc.WorkbookPart.GetIdOfPart(wspart);
-            sheet.SheetId = numSheets;
-            sheets.Append(sheet);
+            sheet.Id = _doc.WorkbookPart.GetIdOfPart(wspart);
+            sheet.SheetId = _numSheets;
+            _sheets.Append(sheet);
             return wspart;
         }
 
@@ -230,11 +230,11 @@ namespace Utils.OpenXmlService
         /// <param name="wspart"></param>
         private static void Insert(CellRef cr, object o, WorksheetPart wspart)
         {
-            Cell cell = InsertCellInWorksheet(cr.col, cr.row, wspart);
-            if (int.TryParse(o.ToString(), out int x) || double.TryParse(o.ToString(), out double y)) cell.DataType = numType;
-            else if (bool.TryParse(o.ToString(), out bool z)) cell.DataType = boolType;
-            else if (DateTime.TryParse(o.ToString(), out DateTime d)) cell.DataType = dateType;
-            else cell.DataType = strType;
+            Cell cell = InsertCellInWorksheet(cr.Col, cr.Row, wspart);
+            if (int.TryParse(o.ToString(), out int x) || double.TryParse(o.ToString(), out double y)) cell.DataType = NUM_TYPE;
+            else if (bool.TryParse(o.ToString(), out bool z)) cell.DataType = BOOL_TYPE;
+            else if (DateTime.TryParse(o.ToString(), out DateTime d)) cell.DataType = DATE_TYPE;
+            else cell.DataType = STR_TYPE;
 
             cell.CellValue = new CellValue(o.ToString());
         }
@@ -309,22 +309,22 @@ namespace Utils.OpenXmlService
         public List<List<string>> GetRange(string worksheetName, CellRef start, CellRef end)
         {
             List<List<string>> result = new List<List<string>>();
-            IEnumerable<Sheet> sheets = wbpart.Workbook.Descendants<Sheet>();
+            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
                 string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                wspart = (WorksheetPart)wbpart.GetPartById(relId);
+                wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
-            catch (InvalidOperationException) { wspart = wbpart.GetPartsOfType<WorksheetPart>().First(); }
+            catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
             SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
 
             List<string> values;
-            for (uint i = start.row; i <= end.row; i++)
+            for (uint i = start.Row; i <= end.Row; i++)
             {
                 Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
                 values = new List<string>();
-                for (int j = ColumnNameToNum(start.col); j <= ColumnNameToNum(end.col); j++)
+                for (int j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
                 {
                     if (row == null) { values.Add(""); continue; }
                     Cell cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
@@ -345,15 +345,15 @@ namespace Utils.OpenXmlService
         /// <param name="values">The values to paste</param>
         public void PasteRange(string worksheetName, CellRef start, List<List<string>> values)
         {
-            int col = ColumnNameToNum(start.col), startCol = col, row = (int)start.row - 1;
-            IEnumerable<Sheet> sheets = wbpart.Workbook.Descendants<Sheet>();
+            int col = ColumnNameToNum(start.Col), startCol = col, row = (int)start.Row - 1;
+            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
                 string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                wspart = (WorksheetPart)wbpart.GetPartById(relId);
+                wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
-            catch (InvalidOperationException) { wspart = wbpart.GetPartsOfType<WorksheetPart>().First(); }
+            catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
             foreach (List<string> r in values)
             {
                 col = startCol;
@@ -376,22 +376,22 @@ namespace Utils.OpenXmlService
         public List<List<string>> CutRange(string worksheetName, CellRef start, CellRef end)
         {
             List<List<string>> result = new List<List<string>>();
-            IEnumerable<Sheet> sheets = wbpart.Workbook.Descendants<Sheet>();
+            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
                 string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                wspart = (WorksheetPart)wbpart.GetPartById(relId);
+                wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
-            catch (InvalidOperationException) { wspart = wbpart.GetPartsOfType<WorksheetPart>().First(); }
+            catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
             SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
 
             List<string> values;
-            for (uint i = start.row; i <= end.row; i++)
+            for (uint i = start.Row; i <= end.Row; i++)
             {
                 Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
                 values = new List<string>();
-                for (int j = ColumnNameToNum(start.col); j <= ColumnNameToNum(end.col); j++)
+                for (int j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
                 {
                     if (row == null) { values.Add(""); continue; }
                     Cell cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
@@ -456,17 +456,17 @@ namespace Utils.OpenXmlService
         public string GetCellValue(string worksheetName, CellRef cellRef)
         {
             string result;
-            IEnumerable<Sheet> sheets = wbpart.Workbook.Descendants<Sheet>();
+            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
                 string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                wspart = (WorksheetPart)wbpart.GetPartById(relId);
+                wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
-            catch (InvalidOperationException) { wspart = wbpart.GetPartsOfType<WorksheetPart>().First(); }
+            catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
             SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
             
-            Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == cellRef.row);            
+            Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == cellRef.Row);            
 
             if (row == null) { result = ""; }
             else
@@ -509,7 +509,7 @@ namespace Utils.OpenXmlService
                         // For shared strings, look up the value in the
                         // shared strings table.
                         var stringTable =
-                            wbpart.GetPartsOfType<SharedStringTablePart>()
+                            _workbookPart.GetPartsOfType<SharedStringTablePart>()
                             .FirstOrDefault();
 
                         // If the shared string table is missing, something 
@@ -552,16 +552,16 @@ namespace Utils.OpenXmlService
             /// <summary>
             /// The cell reference's column name
             /// </summary>
-            public string col;
+            public string Col;
             /// <summary>
             /// The cell reference's row number
             /// </summary>
-            public uint row;
+            public uint Row;
             /// <summary>
             /// Returns a formatted string indicating the column name and row number
             /// </summary>
             /// <param name="cellRef">The CellRef object to turn into a string</param>
-            public static implicit operator string(CellRef cellRef) { return $"{cellRef.col}{cellRef.row}"; }
+            public static implicit operator string(CellRef cellRef) { return $"{cellRef.Col}{cellRef.Row}"; }
             /// <summary>
             /// Creates a new CellRef object from a string that has a column name and row number
             /// </summary>
@@ -573,7 +573,7 @@ namespace Utils.OpenXmlService
                     string col = Regex.Match(s, @"[a-zA-Z]+").Value;
                     string match = Regex.Match(s, @"\d+").Value;
                     uint row = uint.Parse(match);
-                    return new CellRef() { col = col, row = row };
+                    return new CellRef() { Col = col, Row = row };
                 }
                 else return null;
             }
@@ -584,7 +584,7 @@ namespace Utils.OpenXmlService
         /// </summary>
         public enum Direction {
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-            left, right, up, down
+            LEFT, RIGHT, UP, DOWN
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
         }
         
@@ -606,40 +606,40 @@ namespace Utils.OpenXmlService
         public CellRef ScanToEnd(string worksheetName, Direction direction, CellRef start)
         {
             string result = start;
-            IEnumerable<Sheet> sheets = wbpart.Workbook.Descendants<Sheet>();
+            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
                 string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                wspart = (WorksheetPart)wbpart.GetPartById(relId);
+                wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
-            catch (InvalidOperationException) { wspart = wbpart.GetPartsOfType<WorksheetPart>().First(); }
+            catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
             SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
-            if (direction == Direction.left || direction == Direction.right)
+            if (direction == Direction.LEFT || direction == Direction.RIGHT)
             {
-                int colNum = ColumnNameToNum(start.col);
+                int colNum = ColumnNameToNum(start.Col);
                 
-                Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == start.row);
+                Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == start.Row);
                 Cell cell = new Cell();
                 while (cell != null && colNum >= 0)
                 {
-                    cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(colNum)}{start.row}");
-                    if (cell != null) { result = $"{ColumnNumToName(colNum)}{start.row}"; }
-                    colNum += (direction == Direction.right ? 1 : -1);
+                    cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(colNum)}{start.Row}");
+                    if (cell != null) { result = $"{ColumnNumToName(colNum)}{start.Row}"; }
+                    colNum += (direction == Direction.RIGHT ? 1 : -1);
                 }
             }
             else
             {
-                int rowNum = (int)start.row;
+                int rowNum = (int)start.Row;
                 Row row;
                 Cell cell = new Cell();
                 while (cell != null && rowNum > 0)
                 {
                     row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == rowNum);
 
-                    cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{start.col}{rowNum}");
-                    if (cell != null) { result = $"{start.col}{rowNum}"; }
-                    rowNum += (direction == Direction.down ? 1 : -1);
+                    cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{start.Col}{rowNum}");
+                    if (cell != null) { result = $"{start.Col}{rowNum}"; }
+                    rowNum += (direction == Direction.DOWN ? 1 : -1);
                 }
             }
             return result;
@@ -656,17 +656,17 @@ namespace Utils.OpenXmlService
         {
             string result = start;
 
-            if (direction == Direction.left || direction == Direction.right)
+            if (direction == Direction.LEFT || direction == Direction.RIGHT)
             {
-                int colNum = ColumnNameToNum(start.col) + (direction == Direction.right ? 1 : -1) * number;
+                int colNum = ColumnNameToNum(start.Col) + (direction == Direction.RIGHT ? 1 : -1) * number;
                 if (colNum < 0) colNum = 0;
-                result = $"{ColumnNumToName(colNum)}{start.row}";                
+                result = $"{ColumnNumToName(colNum)}{start.Row}";                
             }
             else
             {
-                int rowNum = (int)start.row + (direction == Direction.down ? 1 : -1) * number;
+                int rowNum = (int)start.Row + (direction == Direction.DOWN ? 1 : -1) * number;
                 if (rowNum < 1) rowNum = 1;
-                result = $"{start.col}{rowNum}";
+                result = $"{start.Col}{rowNum}";
             }
             return result;
         }
@@ -679,7 +679,7 @@ namespace Utils.OpenXmlService
         /// <returns>The number of rows between the two given cell references</returns>
         public static int RowsBetween(CellRef startCell, CellRef endCell)
         {
-            return (int)endCell.row - (int)startCell.row;
+            return (int)endCell.Row - (int)startCell.Row;
         }
 
         /// <summary>
@@ -690,7 +690,7 @@ namespace Utils.OpenXmlService
         /// <returns>The number of columns between the two given cell references</returns>
         public static int ColsBetween(CellRef startCell, CellRef endCell)
         {
-            return ColumnNameToNum(endCell.col) - ColumnNameToNum(startCell.col);
+            return ColumnNameToNum(endCell.Col) - ColumnNameToNum(startCell.Col);
         }
 
         #endregion
@@ -699,12 +699,12 @@ namespace Utils.OpenXmlService
         /// <summary>
         /// Saves the current document but leaves it open
         /// </summary>
-        public void Save() { doc.Save(); }
+        public void Save() { _doc.Save(); }
 
         /// <summary>
         /// Saves and closes the current document
         /// </summary>
-        public void SaveAndClose() { doc.Close(); }
+        public void SaveAndClose() { _doc.Close(); }
 
         /// <summary>
         /// Saves and closes the current document, then gets a <see cref="MemoryStream"/> for exporting.
@@ -712,10 +712,10 @@ namespace Utils.OpenXmlService
         /// <returns><see cref="MemoryStream"/></returns>
         public MemoryStream GetStream()
         {
-            doc.Close();
-            stream.Flush();
-            stream.Position = 0;
-            return stream;
+            _doc.Close();
+            _stream.Flush();
+            _stream.Position = 0;
+            return _stream;
         }
 
         /// <summary>
@@ -729,10 +729,10 @@ namespace Utils.OpenXmlService
             //WorksheetPart contains Worksheet-->SheetData
             //SheetData object contains Row objects, which contain Cell objects.
             ExcelDocument newdocument = new ExcelDocument(filename);
-            foreach (Sheet oldsheet in this.sheets.Descendants<Sheet>())
+            foreach (Sheet oldsheet in this._sheets.Descendants<Sheet>())
             {
                 WorksheetPart newwspart = newdocument.InsertSheet(oldsheet.Name);
-                SheetData oldSheetData = ((WorksheetPart)wbpart.GetPartById(oldsheet.Id)).Worksheet.GetFirstChild<SheetData>();                
+                SheetData oldSheetData = ((WorksheetPart)_workbookPart.GetPartById(oldsheet.Id)).Worksheet.GetFirstChild<SheetData>();                
                 foreach (Cell oldcell in oldSheetData.Descendants<Cell>())
                 {
                     Insert(oldcell.CellReference.Value, GetCellValue(oldcell), newwspart);
@@ -740,7 +740,7 @@ namespace Utils.OpenXmlService
             }
 
             //document.wbpart.Workbook.ReplaceChild(this.sheets, document.sheets);//replace new (empty) sheet data with data from the old document
-            this.doc.Close();
+            this._doc.Close();
             newdocument.Save();
             return newdocument;
         }

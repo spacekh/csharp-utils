@@ -178,10 +178,10 @@ namespace Test
                 Console.WriteLine();
             }
 
-            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.down));//A3
-            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.up, "B3"));//B1
-            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.right));//C1
-            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.left, "D3"));//A3
+            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.DOWN));//A3
+            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.UP, "B3"));//B1
+            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.RIGHT));//C1
+            Console.WriteLine(document.ScanToEnd("Sheet1", ExcelDocument.Direction.LEFT, "D3"));//A3
         }
 
         /// <summary>
@@ -189,10 +189,10 @@ namespace Test
         /// </summary>
         private static void TestExcelScan()
         {
-            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.down, "A4", 3));//A7
-            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.up, "A4", 5));//A1
-            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.right, "A4", 3));//D4
-            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.left, "A4", 3));//A4
+            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.DOWN, "A4", 3));//A7
+            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.UP, "A4", 5));//A1
+            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.RIGHT, "A4", 3));//D4
+            Console.WriteLine(ExcelDocument.Scan(ExcelDocument.Direction.LEFT, "A4", 3));//A4
 
         }
     }
