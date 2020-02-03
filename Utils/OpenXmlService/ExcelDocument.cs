@@ -61,7 +61,7 @@ namespace Utils.OpenXmlService
         /// <returns>A fully initialized ExcelDocument object connected to the given file</returns>
         public static ExcelDocument Open(string file)
         {
-            ExcelDocument result = new ExcelDocument
+            var result = new ExcelDocument
             {
                 _doc = SpreadsheetDocument.Open(file, true)
             };
@@ -99,7 +99,7 @@ namespace Utils.OpenXmlService
         /// <param name="cols">The column headers to use.  If not null, only the specified columns, in the specified order, will be written.</param>
         public void AddDataTable(DataTable data, string[,] cols)
         {
-            string sheetName = "Sheet" + _numSheets;
+            var sheetName = "Sheet" + _numSheets;
             AddDataTable(data, cols, sheetName);
         }
 
@@ -111,14 +111,14 @@ namespace Utils.OpenXmlService
         /// <param name="sheetName">The name to give to the Sheet</param>
         public void AddDataTable(DataTable data, string[,] cols, string sheetName)
         {
-            WorksheetPart wspart = InsertSheet(sheetName);
+            var wspart = InsertSheet(sheetName);
             int col = 0, row = 0;
             string[] head = null;
             //write headers
             try
             {
                 //only write the specified headers
-                int l = cols.GetLength(0); //throws an exception if cols is null, so if(cols==null) is unnecessary
+                var l = cols.GetLength(0); //throws an exception if cols is null, so if(cols==null) is unnecessary
                 head = new string[l];
                 for (col = 0; col < l; col++)
                 {
@@ -144,7 +144,7 @@ namespace Utils.OpenXmlService
             {
                 col = 0;
 
-                foreach (string str in head)
+                foreach (var str in head)
                 {
                     o = r[head[col]];
                     Insert(col, row, o, wspart);
@@ -163,11 +163,11 @@ namespace Utils.OpenXmlService
         /// <param name="sheetName">The name to give to the Sheet</param>
         public void AddArray(string[][] data, string sheetName)
         {
-            WorksheetPart wspart = InsertSheet(sheetName);
+            var wspart = InsertSheet(sheetName);
             int col = 0, row = 0;
 
             //write data
-            foreach (string[] r in data)
+            foreach (var r in data)
             {
                 col = 0;
 
@@ -184,10 +184,10 @@ namespace Utils.OpenXmlService
 
         private WorksheetPart InsertSheet(string sheetName)
         {
-            WorksheetPart wspart = _workbookPart.AddNewPart<WorksheetPart>();
+            var wspart = _workbookPart.AddNewPart<WorksheetPart>();
             wspart.Worksheet = new Worksheet(new SheetData());
 
-            Sheet sheet = new Sheet();
+            var sheet = new Sheet();
             _numSheets++;
             sheet.Name = sheetName;
             sheet.Id = _doc.WorkbookPart.GetIdOfPart(wspart);
@@ -217,8 +217,8 @@ namespace Utils.OpenXmlService
         /// <param name="wspart">the Worksheet to insert into</param>
         private void Insert(int col, int row, object o, WorksheetPart wspart)
         {
-            uint r = (uint)row + 1;
-            Cell cell = InsertCellInWorksheet(ColumnNumToName(col), r, wspart);
+            var r = (uint)row + 1;
+            var cell = InsertCellInWorksheet(ColumnNumToName(col), r, wspart);
             Insert(ColumnNumToName(col) + (uint)row + 1, o, wspart);
         }
         
@@ -230,10 +230,10 @@ namespace Utils.OpenXmlService
         /// <param name="wspart"></param>
         private static void Insert(CellRef cr, object o, WorksheetPart wspart)
         {
-            Cell cell = InsertCellInWorksheet(cr.Col, cr.Row, wspart);
-            if (int.TryParse(o.ToString(), out int x) || double.TryParse(o.ToString(), out double y)) cell.DataType = NUM_TYPE;
-            else if (bool.TryParse(o.ToString(), out bool z)) cell.DataType = BOOL_TYPE;
-            else if (DateTime.TryParse(o.ToString(), out DateTime d)) cell.DataType = DATE_TYPE;
+            var cell = InsertCellInWorksheet(cr.Col, cr.Row, wspart);
+            if (int.TryParse(o.ToString(), out var x) || double.TryParse(o.ToString(), out var y)) cell.DataType = NUM_TYPE;
+            else if (bool.TryParse(o.ToString(), out var z)) cell.DataType = BOOL_TYPE;
+            else if (DateTime.TryParse(o.ToString(), out var d)) cell.DataType = DATE_TYPE;
             else cell.DataType = STR_TYPE;
 
             cell.CellValue = new CellValue(o.ToString());
@@ -249,12 +249,12 @@ namespace Utils.OpenXmlService
         /// <remarks>Credits: https://docs.microsoft.com/en-us/office/open-xml/how-to-insert-text-into-a-cell-in-a-spreadsheet#code-snippet-9 </remarks>
         private static Cell InsertCellInWorksheet(string columnName, uint rowIndex, WorksheetPart wspart)
         {
-            SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
-            string cellReference = columnName + rowIndex;
+            var sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
+            var cellReference = columnName + rowIndex;
 
             // If the worksheet does not contain a row with the specified row index, insert one.
             Row row = null;
-            foreach (Row r in sheetData.Elements<Row>())
+            foreach (var r in sheetData.Elements<Row>())
             {
                 if (r.RowIndex == rowIndex)
                 {
@@ -272,7 +272,7 @@ namespace Utils.OpenXmlService
             }
 
             // If there is already a cell with the specified column name, return it.
-            foreach (Cell c in row.Elements<Cell>())
+            foreach (var c in row.Elements<Cell>())
             {
                 if (c.CellReference.Value == cellReference) return c;
             }
@@ -280,13 +280,13 @@ namespace Utils.OpenXmlService
             // Cells must be in sequential order according to CellReference. Determine where to insert the new cell.
             Cell refCell = null;
             int refCellCol = -1, newCellCol = ColumnNameToNum(cellReference);
-            foreach (Cell cell in row.Elements<Cell>())
+            foreach (var cell in row.Elements<Cell>())
             {
                 refCellCol = ColumnNameToNum(cell.CellReference.Value);
                 refCell = cell;
                 if (refCellCol > newCellCol) break;
             }
-            Cell newCell = new Cell();
+            var newCell = new Cell();
             newCell.CellReference = cellReference;
             if (refCellCol > newCellCol)
             {
@@ -308,8 +308,8 @@ namespace Utils.OpenXmlService
         /// <returns></returns>
         public List<List<string>> GetRange(string worksheetName, CellRef start, CellRef end)
         {
-            List<List<string>> result = new List<List<string>>();
-            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
+            var result = new List<List<string>>();
+            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
@@ -317,17 +317,17 @@ namespace Utils.OpenXmlService
                 wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
+            var sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
 
             List<string> values;
-            for (uint i = start.Row; i <= end.Row; i++)
+            for (var i = start.Row; i <= end.Row; i++)
             {
-                Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
+                var row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
                 values = new List<string>();
-                for (int j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
+                for (var j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
                 {
                     if (row == null) { values.Add(""); continue; }
-                    Cell cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
+                    var cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
                     if (cell == null) { values.Add(""); continue; }
                     values.Add(GetCellValue(cell));
                 }
@@ -346,7 +346,7 @@ namespace Utils.OpenXmlService
         public void PasteRange(string worksheetName, CellRef start, List<List<string>> values)
         {
             int col = ColumnNameToNum(start.Col), startCol = col, row = (int)start.Row - 1;
-            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
+            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
@@ -354,10 +354,10 @@ namespace Utils.OpenXmlService
                 wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            foreach (List<string> r in values)
+            foreach (var r in values)
             {
                 col = startCol;
-                foreach (string s in r)
+                foreach (var s in r)
                 {
                     Insert(col, row, s, wspart);
                     col++;
@@ -375,8 +375,8 @@ namespace Utils.OpenXmlService
         /// <returns></returns>
         public List<List<string>> CutRange(string worksheetName, CellRef start, CellRef end)
         {
-            List<List<string>> result = new List<List<string>>();
-            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
+            var result = new List<List<string>>();
+            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
@@ -384,17 +384,17 @@ namespace Utils.OpenXmlService
                 wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
+            var sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
 
             List<string> values;
-            for (uint i = start.Row; i <= end.Row; i++)
+            for (var i = start.Row; i <= end.Row; i++)
             {
-                Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
+                var row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == i);
                 values = new List<string>();
-                for (int j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
+                for (var j = ColumnNameToNum(start.Col); j <= ColumnNameToNum(end.Col); j++)
                 {
                     if (row == null) { values.Add(""); continue; }
-                    Cell cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
+                    var cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(j)}{i}");
                     if (cell == null) { values.Add(""); continue; }
                     values.Add(GetCellValue(cell));
                     cell.Remove();
@@ -417,8 +417,8 @@ namespace Utils.OpenXmlService
         {
             if (string.IsNullOrEmpty(columnName)) throw new ArgumentNullException("columnName");
             columnName = columnName.ToUpperInvariant();
-            int sum = 0;
-            for (int i = 0; i < columnName.Length; i++)
+            var sum = 0;
+            for (var i = 0; i < columnName.Length; i++)
             {
                 sum *= 26;
                 sum += (columnName[i] - 'A' + 1);
@@ -434,8 +434,8 @@ namespace Utils.OpenXmlService
         /// <remarks>Credits: http://stackoverflow.com/questions/181596/how-to-convert-a-column-number-eg-127-into-an-excel-column-eg-aa </remarks>
         public static string ColumnNumToName(int columnNumber)
         {
-            int dividend = columnNumber + 1; //the alg uses 1-indexed; I want 0
-            string columnName = String.Empty;
+            var dividend = columnNumber + 1; //the alg uses 1-indexed; I want 0
+            var columnName = String.Empty;
             int modulo;
 
             while (dividend > 0)
@@ -456,7 +456,7 @@ namespace Utils.OpenXmlService
         public string GetCellValue(string worksheetName, CellRef cellRef)
         {
             string result;
-            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
+            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
@@ -464,14 +464,14 @@ namespace Utils.OpenXmlService
                 wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
+            var sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
             
-            Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == cellRef.Row);            
+            var row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == cellRef.Row);            
 
             if (row == null) { result = ""; }
             else
             {
-                Cell cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == cellRef);
+                var cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == cellRef);
                 if (cell == null) { result = ""; }
                 else result = GetCellValue(cell);
             }
@@ -492,9 +492,9 @@ namespace Utils.OpenXmlService
                 {
                     if (cell.CellFormula.FormulaType == CellFormulaValues.Shared)
                     {
-                        UInt32Value index = cell.CellFormula.SharedIndex;
-                        SheetData sheetData = cell.Ancestors<Worksheet>().First().GetFirstChild<SheetData>(); //get the SheetData from the Worksheet that is in this Cell's list of ancestors
-                        CellFormula formula = sheetData.Elements<CellFormula>().First(f => f.SharedIndex == index);
+                        var index = cell.CellFormula.SharedIndex;
+                        var sheetData = cell.Ancestors<Worksheet>().First().GetFirstChild<SheetData>(); //get the SheetData from the Worksheet that is in this Cell's list of ancestors
+                        var formula = sheetData.Elements<CellFormula>().First(f => f.SharedIndex == index);
                         return formula.Text;//actually need to get the modified formula based on the difference from here to the root
                     }
                     else
@@ -570,9 +570,9 @@ namespace Utils.OpenXmlService
             {
                 if (Regex.IsMatch(s, @"[a-zA-Z]+\d+"))
                 {
-                    string col = Regex.Match(s, @"[a-zA-Z]+").Value;
-                    string match = Regex.Match(s, @"\d+").Value;
-                    uint row = uint.Parse(match);
+                    var col = Regex.Match(s, @"[a-zA-Z]+").Value;
+                    var match = Regex.Match(s, @"\d+").Value;
+                    var row = uint.Parse(match);
                     return new CellRef() { Col = col, Row = row };
                 }
                 else return null;
@@ -606,7 +606,7 @@ namespace Utils.OpenXmlService
         public CellRef ScanToEnd(string worksheetName, Direction direction, CellRef start)
         {
             string result = start;
-            IEnumerable<Sheet> sheets = _workbookPart.Workbook.Descendants<Sheet>();
+            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
             WorksheetPart wspart;
             try
             {
@@ -614,13 +614,13 @@ namespace Utils.OpenXmlService
                 wspart = (WorksheetPart)_workbookPart.GetPartById(relId);
             }
             catch (InvalidOperationException) { wspart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            SheetData sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
+            var sheetData = wspart.Worksheet.GetFirstChild<SheetData>();
             if (direction == Direction.LEFT || direction == Direction.RIGHT)
             {
-                int colNum = ColumnNameToNum(start.Col);
+                var colNum = ColumnNameToNum(start.Col);
                 
-                Row row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == start.Row);
-                Cell cell = new Cell();
+                var row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == start.Row);
+                var cell = new Cell();
                 while (cell != null && colNum >= 0)
                 {
                     cell = row?.Elements<Cell>()?.FirstOrDefault(c => c.CellReference == $"{ColumnNumToName(colNum)}{start.Row}");
@@ -630,9 +630,9 @@ namespace Utils.OpenXmlService
             }
             else
             {
-                int rowNum = (int)start.Row;
+                var rowNum = (int)start.Row;
                 Row row;
-                Cell cell = new Cell();
+                var cell = new Cell();
                 while (cell != null && rowNum > 0)
                 {
                     row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == rowNum);
@@ -658,13 +658,13 @@ namespace Utils.OpenXmlService
 
             if (direction == Direction.LEFT || direction == Direction.RIGHT)
             {
-                int colNum = ColumnNameToNum(start.Col) + (direction == Direction.RIGHT ? 1 : -1) * number;
+                var colNum = ColumnNameToNum(start.Col) + (direction == Direction.RIGHT ? 1 : -1) * number;
                 if (colNum < 0) colNum = 0;
                 result = $"{ColumnNumToName(colNum)}{start.Row}";                
             }
             else
             {
-                int rowNum = (int)start.Row + (direction == Direction.DOWN ? 1 : -1) * number;
+                var rowNum = (int)start.Row + (direction == Direction.DOWN ? 1 : -1) * number;
                 if (rowNum < 1) rowNum = 1;
                 result = $"{start.Col}{rowNum}";
             }
@@ -728,12 +728,12 @@ namespace Utils.OpenXmlService
             //Sheet object contains SheetName
             //WorksheetPart contains Worksheet-->SheetData
             //SheetData object contains Row objects, which contain Cell objects.
-            ExcelDocument newdocument = new ExcelDocument(filename);
-            foreach (Sheet oldsheet in this._sheets.Descendants<Sheet>())
+            var newdocument = new ExcelDocument(filename);
+            foreach (var oldsheet in this._sheets.Descendants<Sheet>())
             {
-                WorksheetPart newwspart = newdocument.InsertSheet(oldsheet.Name);
-                SheetData oldSheetData = ((WorksheetPart)_workbookPart.GetPartById(oldsheet.Id)).Worksheet.GetFirstChild<SheetData>();                
-                foreach (Cell oldcell in oldSheetData.Descendants<Cell>())
+                var newwspart = newdocument.InsertSheet(oldsheet.Name);
+                var oldSheetData = ((WorksheetPart)_workbookPart.GetPartById(oldsheet.Id)).Worksheet.GetFirstChild<SheetData>();                
+                foreach (var oldcell in oldSheetData.Descendants<Cell>())
                 {
                     Insert(oldcell.CellReference.Value, GetCellValue(oldcell), newwspart);
                 }
