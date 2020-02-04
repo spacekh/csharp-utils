@@ -4,6 +4,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -21,6 +22,7 @@ namespace CoreUtils.OpenXmlService
         private Sheets _sheets => _workbookPart.Workbook.GetFirstChild<Sheets>();
         private readonly MemoryStream _stream = new MemoryStream();
         private static uint _numSheets;
+        private IFormatProvider _culture;
         #endregion
 
         #region DataTypes
@@ -35,10 +37,11 @@ namespace CoreUtils.OpenXmlService
         /// <summary>
         /// Initializes a new, empty Excel document for exporting. (Writes to a MemoryStream instead of a file)
         /// </summary>
-        public ExcelDocument()
+        public ExcelDocument(IFormatProvider culture=null)
         {
             //have to create a doc to hold everything, then finish init        
             _doc = SpreadsheetDocument.Create(_stream, SpreadsheetDocumentType.Workbook);
+            _culture = culture ?? CultureInfo.InvariantCulture;
             Init();
         }
 
@@ -46,10 +49,12 @@ namespace CoreUtils.OpenXmlService
         /// Initializes a new, empty Excel document to be written to the given file path.
         /// </summary>
         /// <param name="file">The (full or relative) file path to write the document to</param>
-        public ExcelDocument(string file)
+        /// <param name="culture"></param>
+        public ExcelDocument(string file,IFormatProvider culture=null)
         {
             //create a doc using the given filename, then finish init
             _doc = SpreadsheetDocument.Create(file, SpreadsheetDocumentType.Workbook);
+            _culture = culture ?? CultureInfo.InvariantCulture;
             Init();
         }
 
@@ -57,13 +62,16 @@ namespace CoreUtils.OpenXmlService
         /// Opens the given file in read/write mode
         /// </summary>
         /// <param name="file">The full filepath for the file to be opened</param>
+        /// <param name="culture"></param>
         /// <returns>A fully initialized ExcelDocument object connected to the given file</returns>
-        public static ExcelDocument Open(string file)
+        public static ExcelDocument Open(string file, IFormatProvider culture = null)
         {
             var result = new ExcelDocument
             {
-                _doc = SpreadsheetDocument.Open(file, true)
+                _doc = SpreadsheetDocument.Open(file, true),
+                _culture=culture ?? CultureInfo.InvariantCulture
             };
+
             return result;
         }
 
@@ -108,6 +116,7 @@ namespace CoreUtils.OpenXmlService
         /// <param name="data">The DataTable to serialize</param>
         /// <param name="cols">The column headers to use.  If not null, only the specified columns, in the specified order, will be written.</param>
         /// <param name="sheetName">The name to give to the Sheet</param>
+        
         public void AddDataTable(DataTable data, string[,] cols, string sheetName)
         {
             var worksheetPart = InsertSheet(sheetName);
@@ -117,7 +126,7 @@ namespace CoreUtils.OpenXmlService
             try
             {
                 //only write the specified headers
-                var l = cols.GetLength(0); //throws an exception if cols is null, so if(cols==null) is unnecessary
+                var l = cols.GetLength(0);
                 head = new string[l];
                 for (col = 0; col < l; col++)
                 {
@@ -155,11 +164,39 @@ namespace CoreUtils.OpenXmlService
         }
 
         /// <summary>
-        /// Adds the information from the given DataTable into a new Sheet in the workbook, using the given column ids and alternate names as headers, and the given sheet name as the new Sheet's name
+        /// Adds the information from the given array into a new Sheet in the workbook, using the given sheet name as the new Sheet's name
         /// </summary>
         /// <param name="data">The String array to serialize</param>
         /// <param name="sheetName">The name to give to the Sheet</param>
+        
         public void AddArray(string[][] data, string sheetName)
+        {
+            var worksheetPart = InsertSheet(sheetName);
+            var row = 0;
+
+            //write data
+            foreach (var r in data)
+            {
+                var col = 0;
+
+                foreach (var o in r)
+                {
+                    Insert(col, row, o, worksheetPart);
+                    col++;
+                }
+                row++;
+            }
+
+            _workbookPart.Workbook.Save();
+        }
+
+        /// <summary>
+        /// Adds the information from the given list into a new Sheet in the workbook, using the given sheet name as the new Sheet's name
+        /// </summary>
+        /// <param name="data">The list to serialize</param>
+        /// <param name="sheetName">The name to give to the Sheet</param>
+        
+        public void AddList(IEnumerable<IEnumerable<string>> data, string sheetName)
         {
             var worksheetPart = InsertSheet(sheetName);
             var row = 0;
@@ -213,40 +250,47 @@ namespace CoreUtils.OpenXmlService
         /// <param name="row">the 0-indexed row to add a cell into</param>
         /// <param name="o">the object to add to the given cell</param>
         /// <param name="worksheetPart">the Worksheet to insert into</param>
-        private static void Insert(int col, int row, object o, WorksheetPart worksheetPart)
-        {
-            var r = (uint)row + 1;
-            var cell = InsertCellInWorksheet(ColumnNumToName(col), r, worksheetPart);
-            Insert(ColumnNumToName(col) + (uint)row + 1, o, worksheetPart);
-        }
         
+        private void Insert(int col, int row, object o, WorksheetPart worksheetPart)
+        {
+            Insert(ColumnNumToName(col) + ((uint)row + 1), o, worksheetPart);
+        }
+
         /// <summary>
         /// Inserts the given object into the given <see cref="CellRef"/> in the given <see cref="WorksheetPart"/>
         /// </summary>
-        /// <param name="cr"></param>
-        /// <param name="o"></param>
+        /// <param name="cellRef"></param>
+        /// <param name="obj"></param>
         /// <param name="worksheetPart"></param>
-        private static void Insert(CellRef cr, object o, WorksheetPart worksheetPart)
+        
+        private void Insert(CellRef cellRef, object obj, WorksheetPart worksheetPart)
         {
-            var cell = InsertCellInWorksheet(cr.Col, cr.Row, worksheetPart);
-            if (int.TryParse(o.ToString(), out var x) || double.TryParse(o.ToString(), out var y))
-            {
-                cell.DataType = NUM_TYPE;
-            }
-            else if (bool.TryParse(o.ToString(), out var z))
-            {
-                cell.DataType = BOOL_TYPE;
-            }
-            else if (DateTime.TryParse(o.ToString(), out var d))
-            {
-                cell.DataType = DATE_TYPE;
-            }
-            else
-            {
-                cell.DataType = STR_TYPE;
-            }
+            var cell = InsertCellInWorksheet(cellRef.Col, cellRef.Row, worksheetPart);
 
-            cell.CellValue = new CellValue(o.ToString());
+            switch (obj.ToString())
+            {
+                case { } s when DateTime.TryParse(s,_culture,DateTimeStyles.None, out var dateTime):
+                    cell.DataType = DATE_TYPE;
+                    cell.CellValue = new CellValue(dateTime);
+                    break;
+
+                case { } s when bool.TryParse(s, out var b):
+                    cell.DataType = BOOL_TYPE;
+                    cell.CellValue = new CellValue(b.ToString());
+                    break;
+
+                case { } s when int.TryParse(s, out _) || double.TryParse(s, out _):
+                    cell.DataType = NUM_TYPE;
+                    goto default;
+
+                case { }:
+                    cell.DataType = STR_TYPE;
+                    goto default;
+
+                default:
+                    cell.CellValue = new CellValue(obj.ToString());
+                    break;
+            }
         }
         
         /// <summary>
@@ -307,13 +351,13 @@ namespace CoreUtils.OpenXmlService
         #endregion
 
         #region Read / Write Functions
-
         /// <summary>
         /// Returns a list of lists of strings corresponding to the cells that were found in the given range. If a worksheet called <paramref name="worksheetName"/> is not found, the first worksheet in the document is searched.
         /// </summary>
         /// <param name="worksheetName"></param>
         /// <param name="start"></param>
         /// <param name="end"></param>
+        
         /// <returns></returns>
         public List<List<string>> GetRange(string worksheetName, CellRef start, CellRef end)
         {
@@ -380,6 +424,7 @@ namespace CoreUtils.OpenXmlService
         /// <param name="worksheetName">The worksheet to cut from</param>
         /// <param name="start">The cell reference for the beginning of the cut range</param>
         /// <param name="end">The cell reference for the end of the cut range</param>
+        
         /// <returns></returns>
         public List<List<string>> CutRange(string worksheetName, CellRef start, CellRef end)
         {
@@ -456,39 +501,14 @@ namespace CoreUtils.OpenXmlService
 
             return columnName;
         }
-        /// <summary>
-        /// Gets a string representation of the information inside the given CellRef
-        /// </summary>
-        /// <param name="worksheetName">The worksheet to search</param>
-        /// <param name="cellRef">The CellRef to check</param>
-        /// <returns>The text inside the Cell</returns>
-        public string GetCellValue(string worksheetName, CellRef cellRef)
-        {
-            var sheets = _workbookPart.Workbook.Descendants<Sheet>();
-            WorksheetPart worksheetPart;
-            try
-            {
-                string relId = sheets.First(s => worksheetName.Equals(s.Name)).Id;
-                worksheetPart = (WorksheetPart)_workbookPart.GetPartById(relId);
-            }
-            catch (InvalidOperationException) { worksheetPart = _workbookPart.GetPartsOfType<WorksheetPart>().First(); }
-            var sheetData = worksheetPart.Worksheet.GetFirstChild<SheetData>();
-            
-            var row = sheetData.Elements<Row>().FirstOrDefault(r => r.RowIndex == cellRef.Row);            
-
-            if (row == null) { return ""; }
-            var cell = row.Elements<Cell>().FirstOrDefault(c => c.CellReference == cellRef);
-            return cell == null
-                ? ""
-                : GetCellValue(cell);
-        }
 
         /// <summary>
         /// Gets a string representation of the information inside the given Cell
         /// </summary>
         /// <param name="cell">The Cell to check</param>
+        /// <param name="culture">The culture to use to interpret a Date string (optional).  If not provided, Date string is returned verbatim.</param>
         /// <returns>The text inside the Cell</returns>
-        private string GetCellValue(Cell cell)
+        private string GetCellValue(CellType cell)
         {
             var value = cell.InnerText;
             if (cell.DataType == null)
@@ -512,9 +532,9 @@ namespace CoreUtils.OpenXmlService
 
                     // For shared strings, look up the value in the
                     // shared strings table.
-                    var stringTable =
-                        _workbookPart.GetPartsOfType<SharedStringTablePart>()
-                            .FirstOrDefault();
+                    var stringTable = _workbookPart
+                        .GetPartsOfType<SharedStringTablePart>()
+                        .FirstOrDefault();
 
                     // If the shared string table is missing, something 
                     // is wrong. Return the index that is in
@@ -522,28 +542,17 @@ namespace CoreUtils.OpenXmlService
                     // the table.
                     if (stringTable != null)
                     {
-                        value =
-                            stringTable.SharedStringTable
-                                .ElementAt(int.Parse(value)).InnerText;
+                        return stringTable.SharedStringTable
+                            .ElementAt(int.Parse(value))
+                            .InnerText;
                     }
                     break;
 
-                case CellValues.Boolean:
-                    switch (value)
-                    {
-                        case "0":
-                            value = bool.FalseString;
-                            break;
-                        default:
-                            value = bool.TrueString;
-                            break;
-                    }
-                    break;
+                case CellValues.Date when _culture != null: 
+                    return DateTime.Parse(value, _culture).ToString(_culture);
 
-                case CellValues.Date:
-                    value = DateTime.Parse(value).ToLongDateString();
-                    break;
-                
+                case CellValues.Date: break;
+                case CellValues.Boolean: break;
                 case CellValues.Number: break;
                 case CellValues.Error: break;
                 case CellValues.String: break;
@@ -592,9 +601,7 @@ namespace CoreUtils.OpenXmlService
         /// Enum with Excel document directions (left,right,up,down)
         /// </summary>
         public enum Direction {
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
             LEFT, RIGHT, UP, DOWN
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
         }
         
         /// <summary>
